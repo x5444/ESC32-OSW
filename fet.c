@@ -55,7 +55,7 @@ void fetSetPos(float alpha, float beta){
 
 	// Swap the vectors to always have the first vector having two high side fets on
 	int v1, v2;
-	int v1len = FET_A_H_States[baseVect]   + FET_B_H_States[baseVect]   + FET_C_H_States[baseVect];
+	int v1len = FET_A_H_States[baseVect]       + FET_B_H_States[baseVect]       + FET_C_H_States[baseVect];
 	int v2len = FET_A_H_States[(baseVect+1)%6] + FET_B_H_States[(baseVect+1)%6] + FET_C_H_States[(baseVect+1)%6];
 	if(v1len < v2len){
 		v1 = baseVect;

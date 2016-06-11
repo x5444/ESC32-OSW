@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define F_CPU 72000000
+
 struct ringBuffer{
 	int16_t data[100];
 	uint8_t ptr;
