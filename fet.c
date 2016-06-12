@@ -5,12 +5,7 @@
 #include <stm32f10x_rcc.h>
 #include <stm32f10x_tim.h>
 
-//const BitAction FET_A_H_States[] = {1, 0, 0, 0, 0, 1};
-//const BitAction FET_B_H_States[] = {0, 0, 0, 1, 1, 0};
-//const BitAction FET_C_H_States[] = {0, 1, 1, 0, 0, 0};
-//const BitAction FET_A_L_States[] = {0, 0, 1, 1, 0, 0};
-//const BitAction FET_B_L_States[] = {1, 1, 0, 0, 0, 0};
-//const BitAction FET_C_L_States[] = {0, 0, 0, 0, 1, 1};
+
 
 const BitAction FET_A_H_States[] = {1, 1, 0, 0, 0, 1};
 const BitAction FET_B_H_States[] = {0, 1, 1, 1, 0, 0};
@@ -19,18 +14,6 @@ const BitAction FET_A_L_States[] = {0, 0, 1, 1, 1, 0};
 const BitAction FET_B_L_States[] = {1, 0, 0, 0, 1, 1};
 const BitAction FET_C_L_States[] = {1, 1, 1, 0, 0, 0};
 
-volatile int vect1Idx = 0;
-volatile int vect1Dur = 100;
-volatile int pause1Dur = 1;
-volatile int vect2Idx = 1;
-volatile int vect2Dur = 100;
-volatile int pause2Dur = 1;
-
-
-void setVect(int v1, int v2){
-	vect1Dur = v1;
-	vect2Dur = v2;
-}
 
 
 void fetSetPos(float alpha, float beta){
@@ -114,12 +97,13 @@ void fetSetPos(float alpha, float beta){
 }
 
 
+
 void fetInit(void){
-	//RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
-	//RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
-	//RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
 
 	GPIO_InitTypeDef GPIO_InitStructure;
 
@@ -208,93 +192,4 @@ void fetInit(void){
 	TIM_SetCompare3(TIM4, 19000);
 
 	TIM_GenerateEvent(TIM3, TIM_EventSource_COM);
-
-	//TIM_TimeBaseInitTypeDef TIM_TimeBaseInitStructure;
-	//TIM_TimeBaseInitStructure.TIM_Period = (uint16_t)(F_CPU / 2000000)-1;
-	//TIM_TimeBaseInitStructure.TIM_Prescaler = 0;
-	//TIM_TimeBaseInitStructure.TIM_ClockDivision = 0;
-	//TIM_TimeBaseInitStructure.TIM_CounterMode = TIM_CounterMode_Up;
-	//TIM_TimeBaseInit(TIM2, &TIM_TimeBaseInitStructure);
-
-	//TIM_Cmd(TIM2, ENABLE);
-
-	//TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
-	//TIM_Cmd(TIM2, ENABLE);
-
-	//NVIC_InitTypeDef nvicStructure;
-	//nvicStructure.NVIC_IRQChannel = TIM2_IRQn;
-	//nvicStructure.NVIC_IRQChannelPreemptionPriority = 0;
-	//nvicStructure.NVIC_IRQChannelSubPriority = 1;
-	//nvicStructure.NVIC_IRQChannelCmd = ENABLE;
-	//NVIC_Init(&nvicStructure);
-}
-
-
-
-void TIM2_IRQHandler(){
-	static int state = 0;
-	static int counter = 0;
-	static int curTop = 0;
-	if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET){
-		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
-
-		counter++;
-		counter %= curTop;
-		if(counter != 0 && curTop != 0){
-			return;
-		}
-
-		switch(state){
-			case 0:
-
-				GPIO_WriteBit(FET_A_L_PORT, FET_A_L_PIN, FET_A_L_States[vect1Idx]);
-				GPIO_WriteBit(FET_B_L_PORT, FET_B_L_PIN, FET_B_L_States[vect1Idx]);
-				GPIO_WriteBit(FET_C_L_PORT, FET_C_L_PIN, FET_C_L_States[vect1Idx]);
-				GPIO_WriteBit(FET_A_H_PORT, FET_A_H_PIN, FET_A_H_States[vect1Idx]);
-				GPIO_WriteBit(FET_B_H_PORT, FET_B_H_PIN, FET_B_H_States[vect1Idx]);
-				GPIO_WriteBit(FET_C_H_PORT, FET_C_H_PIN, FET_C_H_States[vect1Idx]);
-
-				curTop = vect1Dur;
-				state = 1;
-				break;
-			case 1:
-
-				GPIO_WriteBit(FET_A_L_PORT, FET_A_L_PIN, 0);
-				GPIO_WriteBit(FET_B_L_PORT, FET_B_L_PIN, 0);
-				GPIO_WriteBit(FET_C_L_PORT, FET_C_L_PIN, 0);
-				GPIO_WriteBit(FET_A_H_PORT, FET_A_H_PIN, 0);
-				GPIO_WriteBit(FET_B_H_PORT, FET_B_H_PIN, 0);
-				GPIO_WriteBit(FET_C_H_PORT, FET_C_H_PIN, 0);
-
-				curTop = pause1Dur;
-				state = 2;
-				break;
-			case 2:
-
-				GPIO_WriteBit(FET_A_L_PORT, FET_A_L_PIN, FET_A_L_States[vect2Idx]);
-				GPIO_WriteBit(FET_B_L_PORT, FET_B_L_PIN, FET_B_L_States[vect2Idx]);
-				GPIO_WriteBit(FET_C_L_PORT, FET_C_L_PIN, FET_C_L_States[vect2Idx]);
-				GPIO_WriteBit(FET_A_H_PORT, FET_A_H_PIN, FET_A_H_States[vect2Idx]);
-				GPIO_WriteBit(FET_B_H_PORT, FET_B_H_PIN, FET_B_H_States[vect2Idx]);
-				GPIO_WriteBit(FET_C_H_PORT, FET_C_H_PIN, FET_C_H_States[vect2Idx]);
-
-				curTop = vect2Dur;
-				state = 3;
-				break;
-			case 3:
-
-				GPIO_WriteBit(FET_A_L_PORT, FET_A_L_PIN, 0);
-				GPIO_WriteBit(FET_B_L_PORT, FET_B_L_PIN, 0);
-				GPIO_WriteBit(FET_C_L_PORT, FET_C_L_PIN, 0);
-				GPIO_WriteBit(FET_A_H_PORT, FET_A_H_PIN, 0);
-				GPIO_WriteBit(FET_B_H_PORT, FET_B_H_PIN, 0);
-				GPIO_WriteBit(FET_C_H_PORT, FET_C_H_PIN, 0);
-
-				curTop = pause2Dur;
-				state = 0;
-				break;
-			default:
-				break;
-		}
-	}
 }

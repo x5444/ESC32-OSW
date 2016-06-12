@@ -7,35 +7,15 @@
 #include <stm32f10x_dma.h>
 
 
-volatile struct ringBuffer phase1Dat;
-volatile struct ringBuffer phase2Dat;
 
-// x = linspace(0,2*pi, 101);
-// y = round(0.5*(71000/500)*(1 + sin(x(1:end-1))));
+// x = linspace(0,2*pi, 21);
+// y = round(0.5*(71000/100)*(1 + sin(x(1:end-1))));
 // str=''; for i=1:numel(y), str=[str ', ' num2str(y(i))]; end, disp(str);
-static const uint32_t sinTab[] = {71, 75, 80, 84, 89, 93, 97, 101, 105, 109, 113, 116, 120, 123, 126, 128, 131, 133, 135, 137, 139, 140, 141, 141, 142, 142, 142, 141, 141, 140, 139, 137, 135, 133, 131, 128, 126, 123, 120, 116, 113, 109, 105, 101, 97, 93, 89, 84, 80, 75, 71, 67, 62, 58, 53, 49, 45, 41, 37, 33, 29, 26, 22, 19, 16, 14, 11, 9, 7, 5, 3, 2, 1, 1, 0, 0, 0, 1, 1, 2, 3, 5, 7, 9, 11, 14, 16, 19, 22, 26, 29, 33, 37, 41, 45, 49, 53, 58, 62, 67};
+static const uint32_t sinTab[] = {355, 465, 564, 642, 693, 710, 694, 643, 565, 466, 356, 246, 147, 69, 18, 0, 17, 68,146, 245};
 
-uint32_t adcBuffer[1024];
-
-
-void ringBufferInit(volatile struct ringBuffer *b){
-	for(int i=0; i<sizeof(b->data)/sizeof(int16_t); i++){
-		b->data[i] = 0;
-	}
-	b->ptr = 0;
-	b->accumulator = 0;
-}
-
-
-void ringBufferUpdate(volatile struct ringBuffer *b, int16_t newVal){
-	int16_t oldVal = b->data[b->ptr];
-	b->data[b->ptr] = newVal;
-	b->ptr += 1;
-	b->ptr %= sizeof(b->data)/sizeof(int16_t);
-
-	b->accumulator -= oldVal;
-	b->accumulator += newVal;
-}
+volatile uint32_t adcBuffer[40 * sizeof(sinTab)/sizeof(uint32_t)];
+int resCalibOffset0 = 0;
+int resCalibOffset1 = 0;
 
 
 
@@ -73,7 +53,7 @@ void resInit(void){
 	// - TIM2 Channel 3 PWM Output
 	// - TIM2 Channel 2 to trigger the ADC
 	TIM_TimeBaseInitTypeDef TIM_TimeBaseInitStructure;
-	TIM_TimeBaseInitStructure.TIM_Period = (uint16_t)(F_CPU / 500000)-1; // 500kHz
+	TIM_TimeBaseInitStructure.TIM_Period = (uint16_t)(F_CPU / 100000)-1; // 100kHz
 	TIM_TimeBaseInitStructure.TIM_Prescaler = 0;
 	TIM_TimeBaseInitStructure.TIM_ClockDivision = 0;
 	TIM_TimeBaseInitStructure.TIM_CounterMode = TIM_CounterMode_Up;
@@ -122,8 +102,8 @@ void resInit(void){
 	ADC_InitStructure.ADC_NbrOfChannel = 2;
 	ADC_Init(ADC1, &ADC_InitStructure);
 
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_1Cycles5);
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 2, ADC_SampleTime_1Cycles5);
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_28Cycles5);
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 2, ADC_SampleTime_28Cycles5);
 
 	ADC_DMACmd(ADC1, ENABLE);
 
@@ -138,7 +118,7 @@ void resInit(void){
 
 
 	// Configure DMA
-	// - Circularly copy entries from ADC1 to the adcBuffer
+	// - Circularly copy entries from ADC1 to the adcBuffer using DMA1 Ch1
 	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(ADC1->DR);
 	DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t)&adcBuffer;
 	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;
@@ -151,123 +131,112 @@ void resInit(void){
 	DMA_InitStructure.DMA_Priority = DMA_Priority_High;
 	DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
 	DMA_Init(DMA1_Channel1, &DMA_InitStructure);
-
-	DMA_ITConfig(DMA1_Channel1, DMA_IT_HT, ENABLE);
-
 	DMA_Cmd(DMA1_Channel1, ENABLE);
-
-	NVIC_InitTypeDef NVIC_InitStructure;
-	NVIC_InitStructure.NVIC_IRQChannel = DMA1_Channel1_IRQn;
-	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
-	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-	NVIC_Init(&NVIC_InitStructure);
-
-//	ADC_ITConfig(ADC1, ADC_IT_EOC, ENABLE);
-//	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_28Cycles5);
-// ADC_SoftwareStartConvCmd(ADC1, ENABLE);
-//
-//	NVIC_InitTypeDef NVIC_InitStructure;
-//	NVIC_InitStructure.NVIC_IRQChannel = ADC1_2_IRQn;
-//	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-//	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
-//	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-//	NVIC_Init(&NVIC_InitStructure);
-
-
-	ringBufferInit(&phase1Dat);
-	ringBufferInit(&phase2Dat);
-
 }
+
+
+
+int inRange(int a, int N){
+	while(a<0){
+		a += N;
+	}
+	return a%N;
+}
+
+
+
+void resCalibrate(void){
+	int numRuns = sizeof(sinTab)/sizeof(uint32_t);
+	int max0val = 0;
+	int max0idx = 0;
+	int max1val = 0;
+	int max1idx = 0;
+
+	for(int run=0; run<numRuns; run++){
+
+		uint32_t numEl = sizeof(adcBuffer)/(2*sizeof(uint32_t));
+		int32_t startIdx = (numEl - (int)DMA_GetCurrDataCounter(DMA1_Channel1));
+		startIdx = (startIdx < 0) ? startIdx + 2*numEl : startIdx;
+		startIdx -= startIdx % 2;
+
+		int32_t res0 = 0;
+		int32_t res1 = 0;
+
+		int32_t acc0 = 0;
+		int32_t acc1 = 0;
+
+		for(int i=2; i<(numEl/2); i+=2){
+			res0 = 0.75*res0 + adcBuffer[inRange(startIdx+i+0, 2*numEl)] - adcBuffer[inRange(startIdx+i-2, 2*numEl)];
+			res1 = 0.75*res1 + adcBuffer[inRange(startIdx+i+1, 2*numEl)] - adcBuffer[inRange(startIdx+i-1, 2*numEl)];
+
+			acc0 = acc0 + res0 * ((int32_t)sinTab[(i/2 + run + startIdx/2)%(sizeof(sinTab)/sizeof(uint32_t))] - 355);
+			acc1 = acc1 + res1 * ((int32_t)sinTab[(i/2 + run + startIdx/2)%(sizeof(sinTab)/sizeof(uint32_t))] - 355);
+		}
+
+		acc0 = (acc0 < 0) ? -acc0 : acc0;
+		acc1 = (acc1 < 0) ? -acc1 : acc1;
+
+		if(acc0 > max0val){
+			max0val = acc0;
+			max0idx = run;
+		}
+
+		if(acc1 > max1val){
+			max1val = acc1;
+			max1idx = run;
+		}
+	}
+
+	resCalibOffset0 = max0idx;
+	resCalibOffset1 = max1idx;
+}
+
 
 
 float resGetAngle(void){
-	int32_t a1 = phase1Dat.accumulator;
-	int32_t a2 = phase2Dat.accumulator;
+	float angle = 0;
 
-	float res = 0.0f;
+	uint32_t numEl = sizeof(adcBuffer)/(2*sizeof(uint32_t));
+	int32_t startIdx = (numEl - (int)DMA_GetCurrDataCounter(DMA1_Channel1));
+	startIdx = (startIdx < 0) ? startIdx + 2*numEl : startIdx;
+	startIdx -= startIdx % 2;
 
-	if( a1 > 0 && a2 > 0 ){
-		res = 90.0f;
-	}else if( a1 > 0 && a2 < 0){
-		res = 270.0f;
-	}else if( a1 < 0 && a2 > 0){
-		res = 90.0f;
-	}else if( a1 < 0 && a2 < 0){
-		res = 270.0f;
+	int32_t res0 = 0;
+	int32_t res1 = 0;
+
+	int32_t acc0 = 0;
+	int32_t acc1 = 0;
+
+	int32_t p0 = 0;
+	int32_t p1 = 0;
+
+	for(int i=2; i<(numEl/2); i+=2){
+		res0 = 0.75*res0 + adcBuffer[inRange(startIdx+i+0, 2*numEl)] - adcBuffer[inRange(startIdx+i-2, 2*numEl)];
+		res1 = 0.75*res1 + adcBuffer[inRange(startIdx+i+1, 2*numEl)] - adcBuffer[inRange(startIdx+i-1, 2*numEl)];
+
+		p0 = p0 + res0 * ((int32_t)sinTab[(i/2 + resCalibOffset0 + startIdx/2)%(sizeof(sinTab)/sizeof(uint32_t))] - 355);
+		p1 = p1 + res1 * ((int32_t)sinTab[(i/2 + resCalibOffset1 + startIdx/2)%(sizeof(sinTab)/sizeof(uint32_t))] - 355);
+	}
+
+	acc0 = p0;
+	acc1 = p1;
+
+
+	if( acc0 > 0 && acc1 > 0 ){
+		angle = 90.0f;
+	}else if( acc0 > 0 && acc1 < 0){
+		angle = 270.0f;
+	}else if( acc0 < 0 && acc1 > 0){
+		angle = 90.0f;
+	}else if( acc0 < 0 && acc1 < 0){
+		angle = 270.0f;
 	}else{
-		res = 0.0f;
+		angle = 0.0f;
 	}
 
-	res += (180.0f / 3.1415f) * atanf( ((float)a1) / ((float)a2) ) - 148.0f;
+	angle += (180.0f / 3.1415f) * atanf( ((float)acc0) / ((float)acc1) );
 
-	res = (res < 0) ? (res + 360.0f) : res;
+	angle = (angle < 0) ? (angle + 360.0f) : angle;
 
-	return res;
-}
-
-void DMA1_Channel1_IRQHandler(void){
-	DMA_ClearITPendingBit(DMA1_IT_HT1);
-	int i;
-	for(i=0; i<1; i++);
-	return;
-}
-
-void ADC1_2_IRQHandler(void)
-{
-	static int state = 0;
-	static int sinIdx = 0;
-
-	static int16_t phase1y[2] = {0, 0};
-	static int16_t phase1x[2] = {0, 0};
-
-	static int16_t phase2y[2] = {0, 0};
-	static int16_t phase2x[2] = {0, 0};
-
-	uint16_t adcVal = (uint16_t)ADC_GetConversionValue(ADC1);
-	uint32_t corr;
-	int cmpIdx;
-
-	switch(state){
-		case 0:
-			phase1x[1] = phase1x[0];
-			phase1x[0] = (int16_t)adcVal;
-			phase1y[1] = phase1y[0];
-			phase1y[0] = (phase1y[1] >> 2) + (phase1y[1] >> 1) + phase1x[0] - phase1x[1];
-
-			cmpIdx = (sinIdx - 7);
-			cmpIdx = (cmpIdx < 0) ? cmpIdx + sizeof(sinTab)/sizeof(uint16_t) : cmpIdx;
-			corr = (((int32_t)sinTab[cmpIdx])-50) * phase1y[0];
-
-			ringBufferUpdate(&phase1Dat, corr);
-			ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 1, ADC_SampleTime_28Cycles5);
-
-			state = 1;
-			break;
-
-		case 1:
-			phase2x[1] = phase2x[0];
-			phase2x[0] = (int16_t)adcVal;
-			phase2y[1] = phase2y[0];
-			phase2y[0] = (phase2y[1] >> 2) + (phase2y[1] >> 1) + phase2x[0] - phase2x[1];
-
-			cmpIdx = (sinIdx - 7);
-			cmpIdx = (cmpIdx < 0) ? cmpIdx + sizeof(sinTab)/sizeof(uint16_t) : cmpIdx;
-			corr = (((int32_t)sinTab[cmpIdx])-50) * phase2y[0];
-
-			sinIdx++;
-			sinIdx %= sizeof(sinTab)/sizeof(uint16_t);
-			TIM_SetCompare1(TIM1, sinTab[sinIdx++]);
-
-			ringBufferUpdate(&phase2Dat, corr);
-			ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_28Cycles5);
-
-			state = 0;
-			break;
-
-		default:
-			break;
-	}
-
-	ADC_SoftwareStartConvCmd(ADC1, ENABLE);
+	return angle;
 }
