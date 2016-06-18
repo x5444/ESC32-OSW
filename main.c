@@ -16,6 +16,9 @@ int __errno;
 #define F_CPU 72000000
 
 
+float offset;
+
+
 int main(void) {
 
 	// Enable Clocks
@@ -32,26 +35,47 @@ int main(void) {
 	float a = cosf(0) * 0.8f;
 	float b = sinf(0) * 0.8f;
 	fetSetPos(a, b);
+
+	for(int i=0; i<1000000; i++);
+
 	resCalibrate();
 
 	for(int i=0; i<1000000; i++);
 
-	float offset = (360.0f - resGetAngle());
+	offset = (360.0f - resGetAngle());
+
+	fetSetDq(0.8f, 0.0f);
+
+
+	SysTick_Config(F_CPU / 10000);
+
+	NVIC_InitTypeDef NVIC_InitStructure;
+	NVIC_InitStructure.NVIC_IRQChannel = SysTick_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStructure);
 
 
 	while(1){
 
-		float x = (360.0f - resGetAngle()) - offset;
+		//float x = (360.0f - resGetAngle()) - offset;
 
-		for(int i=0; i<50; i++);
+		//for(int i=0; i<50; i++);
 
-		x = (x < 0) ? x + 360 : x;
-		a = cosf(2*(3.1415f / 180.0f) * x + 1.5) * 0.8f;
-		b = sinf(2*(3.1415f / 180.0f) * x + 1.5) * 0.8f;
+		//x = (x < 0) ? x + 360 : x;
+		//a = cosf(2*(3.1415f / 180.0f) * x + 1.5) * 0.8f;
+		//b = sinf(2*(3.1415f / 180.0f) * x + 1.5) * 0.8f;
 
-		fetSetPos(a, b);
+		//fetSetPos(a, b);
 
 	}
+}
+
+
+void SysTick_Handler(void){
+	float angle = resGetAngle() - offset;
+	fetUpdate(angle);
 }
 
 

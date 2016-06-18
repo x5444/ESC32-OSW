@@ -19,5 +19,7 @@
 
 void fetInit(void);
 void fetSetPos(float alpha, float beta);
+void fetSetDq(float Id, float Iq);
+void fetUpdate(float angle);
 
 #endif // __FET_H__

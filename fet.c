@@ -14,6 +14,31 @@ const BitAction FET_A_L_States[] = {0, 0, 1, 1, 1, 0};
 const BitAction FET_B_L_States[] = {1, 0, 0, 0, 1, 1};
 const BitAction FET_C_L_States[] = {1, 1, 1, 0, 0, 0};
 
+float fetD = 0;
+float fetQ = 0;
+
+
+
+void fetUpdate(float angle){
+	angle = (3.1415f/180.0f) * angle;
+	float cosAngle = cosf( angle );
+	float sinAngle = sinf( angle );
+
+	// Ia | = | cos -sin | * Id |
+	// Ib |   | sin  cos |   Iq |
+	float alpha = cosAngle * fetD - sinAngle * fetQ;
+	float beta  = sinAngle * fetD + cosAngle * fetQ;
+
+	fetSetPos(alpha, beta);
+};
+
+
+
+void fetSetDq(float Id, float Iq){
+	fetD = Id;
+	fetQ = Iq;
+}
+
 
 
 void fetSetPos(float alpha, float beta){

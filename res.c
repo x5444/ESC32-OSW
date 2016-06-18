@@ -132,6 +132,7 @@ void resInit(void){
 	DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
 	DMA_Init(DMA1_Channel1, &DMA_InitStructure);
 	DMA_Cmd(DMA1_Channel1, ENABLE);
+
 }
 
 
@@ -173,8 +174,8 @@ void resCalibrate(void){
 			acc1 = acc1 + res1 * ((int32_t)sinTab[(i/2 + run + startIdx/2)%(sizeof(sinTab)/sizeof(uint32_t))] - 355);
 		}
 
-		acc0 = (acc0 < 0) ? -acc0 : acc0;
-		acc1 = (acc1 < 0) ? -acc1 : acc1;
+		//acc0 = (acc0 < 0) ? -acc0 : acc0;
+		//acc1 = (acc1 < 0) ? -acc1 : acc1;
 
 		if(acc0 > max0val){
 			max0val = acc0;
